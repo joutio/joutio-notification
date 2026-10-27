@@ -1,3 +1,10 @@
+## 1.0.0 (2026-10-27)
+
+### Features
+
+* release Joutio notification 1.0.0 ([d9c7152](https://github.com/joutio/joutio-notification/commit/d9c71522002a3bd855d03453a475d4d802fbe962))
+* release Joutio notification 1.0.0 ([85c9b7f](https://github.com/joutio/joutio-notification/commit/85c9b7fd68082147ae606e1307e66949fbcb98a2))
+
 ## [3.10.0](https://github.com/joutio/joutio-notification/compare/v3.9.0...v3.10.0) (2026-10-22)
 
 ### Features
