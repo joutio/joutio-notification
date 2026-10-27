@@ -1,0 +1,21 @@
+spring:
+  config:
+    import: optional:classpath:joutio-defaults.yml
+  application:
+    name: joutio-notification
+  profiles:
+    default: local
+
+  flyway:
+    locations: classpath:db/migration/notification
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+microservice:
+  swagger:
+    description: Joutio Notification Module - per-player inbox and preferences
+  websocket:
+    enabled: false

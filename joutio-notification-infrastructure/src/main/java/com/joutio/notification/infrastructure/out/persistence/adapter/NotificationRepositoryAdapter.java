@@ -1,0 +1,120 @@
+package com.joutio.notification.infrastructure.out.persistence.adapter;
+
+import com.joutio.notification.domain.model.Notification;
+import com.joutio.notification.domain.model.NotificationPage;
+import com.joutio.notification.domain.model.NotificationType;
+import com.joutio.notification.domain.port.out.NotificationRepositoryPort;
+import com.joutio.notification.infrastructure.out.persistence.mapper.NotificationEntityMapper;
+import com.joutio.notification.infrastructure.out.persistence.repository.NotificationJpaRepository;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+
+@Component
+public class NotificationRepositoryAdapter implements NotificationRepositoryPort {
+
+    private final NotificationJpaRepository repository;
+
+    public NotificationRepositoryAdapter(NotificationJpaRepository repository) {
+        this.repository = repository;
+    }
+
+    @Override
+    @Transactional
+    public void save(Notification notification) {
+        repository.save(NotificationEntityMapper.toEntity(notification));
+    }
+
+    @Override
+    @Transactional
+    public void deleteById(String notificationId) {
+        repository.deleteById(notificationId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Notification> findBySourceIdAndType(String sourceId, NotificationType type) {
+        return repository.findBySourceIdAndType(sourceId, type).stream()
+                .map(NotificationEntityMapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public void expireChallengeInvitations(String challengeId, Instant expiredAt) {
+        repository.expireBySourceIdAndType(challengeId, NotificationType.CHALLENGE_RECEIVED, expiredAt);
+    }
+
+    @Override
+    @Transactional
+    public void expireBySourceIdAndType(String sourceId, NotificationType type, Instant expiredAt) {
+        repository.expireBySourceIdAndType(sourceId, type, expiredAt);
+    }
+
+    @Override
+    @Transactional
+    public void expireBySourceIdAndTypeAndUserId(String sourceId,
+                                                 NotificationType type,
+                                                 String userId,
+                                                 Instant expiredAt) {
+        repository.expireBySourceIdAndTypeAndUserId(sourceId, type, userId, expiredAt);
+    }
+
+    @Override
+    @Transactional
+    public void attachGameId(String sourceId, String gameId) {
+        repository.attachGameId(sourceId, NotificationType.ROOM_ACCEPTED, gameId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Notification> findById(String notificationId) {
+        return repository.findById(notificationId).map(NotificationEntityMapper::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsById(String notificationId) {
+        return repository.existsById(notificationId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public NotificationPage page(String userId, boolean unreadOnly, int page, int size) {
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        var result = unreadOnly
+                ? repository.findByUserIdAndReadAtIsNullOrderByCreatedAtDesc(userId, pageRequest)
+                : repository.findByUserIdOrderByCreatedAtDesc(userId, pageRequest);
+        List<Notification> content = result.getContent().stream()
+                .map(NotificationEntityMapper::toDomain)
+                .toList();
+        return new NotificationPage(content, result.getTotalElements());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countUnread(String userId) {
+        return repository.countByUserIdAndReadAtIsNull(userId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<String> findUnreadIds(String userId) {
+        return repository.findByUserIdAndReadAtIsNull(userId).stream()
+                .map(entity -> entity.getNotificationId())
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<String> findAllIds(String userId) {
+        return repository.findByUserId(userId).stream()
+                .map(entity -> entity.getNotificationId())
+                .toList();
+    }
+}

@@ -1,0 +1,54 @@
+package com.joutio.notification.domain.port.out;
+
+import com.joutio.notification.domain.model.Notification;
+import com.joutio.notification.domain.model.NotificationPage;
+import com.joutio.notification.domain.model.NotificationType;
+
+import java.util.List;
+import java.util.Optional;
+
+/** Port sortant du read model « inbox ». */
+public interface NotificationRepositoryPort {
+
+    void save(Notification notification);
+
+    /** Hard delete de la notification (projection de l'événement de suppression). */
+    void deleteById(String notificationId);
+
+    /** Notifications d'une source pour un type donné (ex. invitations d'un défi). */
+    List<Notification> findBySourceIdAndType(String sourceId, NotificationType type);
+
+    /** Expire un défi nominatif en attente (accepté/refusé/annulé/expiré). */
+    void expireChallengeInvitations(String challengeId, java.time.Instant expiredAt);
+
+    /** Expire les notifications d'une source pour un type donné (ex. relances d'une salle close). */
+    void expireBySourceIdAndType(String sourceId, NotificationType type, java.time.Instant expiredAt);
+
+    /**
+     * Expire les notifications d'une source pour un type et un destinataire donnés (ex. relance
+     * honorée : le joueur visé vient de rejoindre la salle).
+     */
+    void expireBySourceIdAndTypeAndUserId(String sourceId,
+                                          NotificationType type,
+                                          String userId,
+                                          java.time.Instant expiredAt);
+
+    /**
+     * Rattache la partie créée depuis une salle aux notifications d'acceptation déjà émises
+     * (deep link vers l'arène une fois la salle purgée).
+     */
+    void attachGameId(String sourceId, String gameId);
+
+    Optional<Notification> findById(String notificationId);
+
+    boolean existsById(String notificationId);
+
+    NotificationPage page(String userId, boolean unreadOnly, int page, int size);
+
+    long countUnread(String userId);
+
+    List<String> findUnreadIds(String userId);
+
+    /** Tous les identifiants de notifications du joueur (lues et non lues). */
+    List<String> findAllIds(String userId);
+}

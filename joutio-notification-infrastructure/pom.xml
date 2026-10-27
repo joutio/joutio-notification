@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.joutio</groupId>
+        <artifactId>joutio-notification</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>joutio-notification-infrastructure</artifactId>
+
+    <properties>
+        <!-- Pin release du contrat matchmaking (voir workspace AGENTS § 3) : bumpé après release. -->
+        <joutio.matchmaking-domain.version>11.5.0</joutio.matchmaking-domain.version>
+        <!-- Pin release du contrat theme (signalements de questions). -->
+        <joutio.theme-domain.version>6.14.0</joutio.theme-domain.version>
+        <!-- Pin du contrat identity (suspension de compte). -->
+        <!-- 2.9.0 : motifs de suspension de compte étendus (UserSuspendedEvent). -->
+        <joutio.identity-domain.version>2.12.0</joutio.identity-domain.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.joutio</groupId>
+            <artifactId>joutio-notification-domain</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.joutio</groupId>
+            <artifactId>joutio-microservice-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.joutio</groupId>
+            <artifactId>joutio-social-domain</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.joutio</groupId>
+            <artifactId>joutio-matchmaking-domain</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.joutio</groupId>
+            <artifactId>joutio-theme-domain</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.joutio</groupId>
+            <artifactId>joutio-identity-domain</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.joutio.notification.NotificationServiceApplication</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

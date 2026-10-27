@@ -1,0 +1,121 @@
+# AGENTS.md — joutio-notification
+
+> Service de **notification** : inbox par joueur (lu/non-lu), préférences et ingestion des
+> événements de domaine (follows, défis). Architecture : Axon Framework (CQRS/EDA) + JPA
+> (projections) + Kafka (événements inter-services).
+> Pour les règles de patterns : [
+`../../best-practices/.backend/folder-structure.md`](../../best-practices/.backend/folder-structure.md).
+
+---
+
+## 1. Rôle
+
+- **Inbox** : consomme les événements de domaine des autres services (follows, défis, relances de
+  salle) et crée une notification
+  personnelle par destinataire (`notification_entry` : type, acteur, source, sujet, partie,
+  expiration, lu/non-lu). Le destinataire peut la marquer lue ou la **supprimer** (hard delete du
+  read model, agrégat marqué supprimé).
+- **Préférences** : une catégorie (`FOLLOW`, `ROOM`, `QUESTION`, `ACCOUNT`) peut être coupée ;
+  défaut activé. La catégorie `ACCOUNT` est **obligatoire** : `ACCOUNT_SUSPENDED` ignore les
+  préférences (information de compte).
+  Une notification dont la catégorie est coupée n'est pas créée.
+- **Livraison** : le service publie `NotificationCreatedEvent` sur le bus ; le **BFF** le pousse
+  sur `/topic/notifications/{userId}` et l'expose en REST (`/api/notifications`,
+  `/api/notification-preferences`).
+
+**Package** : `com.joutio.notification`
+
+---
+
+## 2. Surface (headless)
+
+Service **headless** : aucun contrôleur REST ni WebSocket. La surface applicative unique est le **`joutio-bff`**.
+
+## 3. Use cases (ports entrants — `domain/`)
+
+- `NotificationAggregate` : `CreateNotificationCommand` (système, identifiant déterministe),
+  `MarkNotificationReadCommand` (destinataire uniquement), `MarkNotificationUnreadCommand`
+  (destinataire uniquement, idempotent), `DeleteNotificationCommand`
+  (destinataire uniquement — `NotificationDeletedEvent` puis `AggregateLifecycle.markDeleted()`).
+- `NotificationPreferenceAggregate` : `UpdateNotificationPreferenceCommand`
+  (`@CreationPolicy(CREATE_IF_MISSING)`).
+- Commandes sans état : `MarkAllNotificationsReadCommand` (fan-out sur les ids non lus),
+  `DeleteAllNotificationsCommand` (fan-out du hard delete sur tous les ids du joueur).
+- Queries : `GetNotificationsQuery`, `GetNotificationQuery`, `CountUnreadNotificationsQuery`,
+  `GetNotificationPreferencesQuery`, `GetUnreadNotificationIdsQuery`.
+
+---
+
+## 4. Ingestion (Kafka)
+
+`NotificationIngestionHandler` (`@ProcessingGroup("notification-ingestion")`) consomme :
+
+| Événement                | Notification                                                      |
+|--------------------------|-------------------------------------------------------------------|
+| `UserFollowedEvent`      | `FOLLOW` pour le joueur suivi                                     |
+| `ChallengeCreatedEvent`  | `CHALLENGE_RECEIVED` pour l'invité (sourceId = challengeId, `gameId` = partie d'origine si revanche, `expiresAt` = 10 s pour une revanche — le client ouvre une popup dédiée) |
+| `ChallengeAcceptedEvent` | `ROOM_ACCEPTED` pour le lanceur (sourceId = roomId dérivé, acteur = invité) ; invitation expirée |
+| `ChallengeDeclinedEvent` | `CHALLENGE_DECLINED` pour le lanceur ; invitation expirée         |
+| `ChallengeCancelledEvent` | — (invitation de l'invité **supprimée** → push `NOTIFICATION_DELETED` : le toast se ferme et la carte Social disparaît en temps réel) |
+| `ChallengeExpired/PurgedEvent` | — (invitation en attente expirée)                 |
+| `RoomWizzedEvent`        | `WIZZ` pour la cible (sourceId = roomId, acteur = émetteur) : **une seule entrée par salle**, remplacée à chaque relance (hard delete de la précédente → push `NOTIFICATION_DELETED`) ; expirée quand le joueur visé rejoint la salle ou à la fin de la salle |
+| `QuestionReportedEvent`  | `QUESTION_REPORTED` pour le créateur du sujet (sourceId = reportId, acteur = signalant, topicId = sujet) — une entrée par signalement, catégorie `QUESTION` |
+| `UserSuspendedEvent`    | `ACCOUNT_SUSPENDED` pour le joueur suspendu (sourceId = suspensionId, sans acteur) — catégorie `ACCOUNT` **obligatoire**, ignorée par les préférences |
+| `RoomCompletedEvent`     | — mais rattache le `gameId` créé aux `ROOM_ACCEPTED` (deep link arène) et expire les relances pendantes |
+
+> Les événements de **salle** (`RoomCreated`, `RoomEntered`, `RoomLeft`, `RoomAllPlayersPresent`,
+> `RoomCancelled`, `RoomExpired`, `RoomFailed`) ne produisent **aucune** notification d'inbox : la
+> présence et l'échec de préparation sont poussés en temps réel par le BFF sur
+> `/topic/rooms/{roomId}`. **Exception** : la **relance** (« wizz ») vise, par définition, un
+> joueur **absent** de la salle — elle passe par l'inbox (`WIZZ`) pour l'atteindre, et
+> `RoomEnteredEvent` (le joueur visé arrive) / les terminaux de salle expirent la relance
+> pendante.
+
+- **Idempotence** : `notificationId = UUID.nameUUIDFromBytes(type + ":" + sourceId + ":" + userId)`
+    + garde d'existence + contrainte unique `uq_notification_source` ; une relecture Kafka
+      at-least-once ne duplique pas.
+- **Pas d'index de routage** : chaque événement consommé porte ses destinataires (le
+  `ChallengeAcceptedEvent` porte lanceur/invité et le roomId est dérivé par `ChallengeRoomId`).
+- L'appariement public (`Matchmaking*`) n'est **pas** ingéré : l'écran de recherche bascule en
+  direct vers la **salle** créée (aucune notification d'appariement), puis c'est la salle qui mène
+  à l'arène.
+- **Suppression** : hard delete du read model (`notification_entry`) + `markDeleted()` de
+  l'agrégat. La création est idempotente **même après suppression** : `createIfAllowed` vérifie le
+  read model **et** l'event store (`EventStore.readEvents`) — une relecture Kafka at-least-once
+  postérieure à une suppression est ignorée au lieu de recréer un agrégat existant (sinon
+  `AggregateStreamCreationException` → poison pill du tracking processor). Un `catch` ciblé sert de
+  filet en cas de course.
+- **Invitations** : à l'acceptation/refus/expiration/purge d'un défi, l'invitation en attente est
+  **expirée dans le read model** (`expiresAt` = instant de l'événement) : le client masque
+  Accepter/Refuser. À l'**annulation** (`ChallengeCancelledEvent`), l'invitation est **supprimée**
+  (hard delete via `DeleteNotificationCommand` sur l'agrégat) : le BFF pousse `NOTIFICATION_DELETED`
+  et le client ferme le toast / retire la carte Social sans attendre le poll (le backend refuse de
+  toute façon une acceptation sur un défi non `PENDING`).
+- **Deep link partie** : sur `RoomCompletedEvent`, `attachGameId(sourceId, gameId)` met à jour les
+  `ROOM_ACCEPTED` de la salle — l'inbox peut rejoindre l'arène même après la purge (2 min).
+
+---
+
+## 5. Dépendances inter-services
+
+Contrats consommés (pins release) : `joutio-social-domain`, `joutio-matchmaking-domain`,
+`joutio-theme-domain` (signalements de questions), `joutio-identity-domain` (suspension de
+compte). Aucune query sortante : le service n'écrit que dans sa base et publie ses propres
+événements.
+
+---
+
+## 6. Contrats BFF
+
+- `GET /api/notifications?unreadOnly=&page=&size=` → `PageResponse<NotificationView>`.
+- `GET /api/notifications/unread-count` → `{ count }`.
+- `POST /api/notifications/{id}/read` (propriétaire uniquement) ; `POST /api/notifications/{id}/unread` ;
+  `POST /api/notifications/read-all`.
+- `DELETE /api/notifications/{id}` (propriétaire uniquement, `204`) → hard delete.
+- `DELETE /api/notifications` (`204`) → vide l'inbox du joueur courant (hard delete, fan-out).
+- `GET /api/notification-preferences` ; `PUT /api/notification-preferences/{category}`.
+- WS `/topic/notifications/{userId}` (payload `NotificationView` dans un `EventEnvelopeResponse`,
+  plus l'événement `NOTIFICATION_DELETED` à la suppression).
+
+Read models : `notification_entry`, `notification_preference_entry`
+(migration `V1__create_notification_schema.sql`).
