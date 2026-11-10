@@ -1,3 +1,9 @@
+## [1.0.1](https://github.com/joutio/joutio-notification/compare/v1.0.0...v1.0.1) (2026-11-10)
+
+### Bug Fixes
+
+* **notification:** keep question reports anonymous ([fbf06d5](https://github.com/joutio/joutio-notification/commit/fbf06d51266d7c94f9ceeca26b91e9f427fba61e))
+
 ## 1.0.0 (2026-10-27)
 
 ### Features
