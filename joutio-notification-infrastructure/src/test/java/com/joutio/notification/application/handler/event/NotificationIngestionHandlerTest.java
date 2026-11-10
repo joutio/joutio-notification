@@ -78,7 +78,7 @@ class NotificationIngestionHandlerTest {
     }
 
     @Test
-    void questionReported_notifiesTheTopicCreator() {
+    void questionReported_notifiesTheTopicCreatorWithoutRevealingTheReporter() {
         handler.on(new QuestionReportEvent.QuestionReportedEvent(
                 "thread-1", "report-1", "question-1", "topic-1", "creator-1",
                 "reporter-1", "game-1", java.util.Set.of(
@@ -90,7 +90,7 @@ class NotificationIngestionHandlerTest {
         verify(commandGateway).send(captor.capture());
         assertThat(captor.getValue().userId()).isEqualTo("creator-1");
         assertThat(captor.getValue().type()).isEqualTo(NotificationType.QUESTION_REPORTED);
-        assertThat(captor.getValue().actorId()).isEqualTo("reporter-1");
+        assertThat(captor.getValue().actorId()).isNull();
         assertThat(captor.getValue().sourceId()).isEqualTo("report-1");
         assertThat(captor.getValue().topicId()).isEqualTo("topic-1");
     }

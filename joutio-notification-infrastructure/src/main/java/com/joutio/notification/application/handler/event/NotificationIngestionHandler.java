@@ -87,7 +87,8 @@ public class NotificationIngestionHandler {
     /**
      * Un joueur a signalé une question d'un sujet du destinataire. Une notification par
      * signalement ({@code sourceId = reportId}) : après réactivation, un nouveau signalement
-     * produit bien une nouvelle alerte.
+     * produit bien une nouvelle alerte. <b>Anonyme</b> : aucun {@code actorId}, le signalant n'est
+     * jamais révélé à l'équipe du sujet.
      */
     @EventHandler
     public void on(QuestionReportEvent.QuestionReportedEvent event) {
@@ -95,7 +96,7 @@ public class NotificationIngestionHandler {
             return;
         }
         createIfAllowed(event.topicCreatorId(), NotificationType.QUESTION_REPORTED,
-                event.reporterId(), event.reportId(), event.topicId(), null, null);
+                null, event.reportId(), event.topicId(), null, null);
     }
 
     /** Un sujet publié est repassé en DRAFT après suppression d'un compte. */

@@ -59,7 +59,7 @@ Service **headless** : aucun contrôleur REST ni WebSocket. La surface applicati
 | `ChallengeCancelledEvent` | — (invitation de l'invité **supprimée** → push `NOTIFICATION_DELETED` : le toast se ferme et la carte Social disparaît en temps réel) |
 | `ChallengeExpired/PurgedEvent` | — (invitation en attente expirée)                 |
 | `RoomWizzedEvent`        | `WIZZ` pour la cible (sourceId = roomId, acteur = émetteur) : **une seule entrée par salle**, remplacée à chaque relance (hard delete de la précédente → push `NOTIFICATION_DELETED`) ; expirée quand le joueur visé rejoint la salle ou à la fin de la salle |
-| `QuestionReportedEvent`  | `QUESTION_REPORTED` pour le créateur du sujet (sourceId = reportId, acteur = signalant, topicId = sujet) — une entrée par signalement, catégorie `QUESTION` |
+| `QuestionReportedEvent`  | `QUESTION_REPORTED` pour le créateur du sujet (sourceId = reportId, topicId = sujet, **anonyme** : aucun acteur, le signalant n’est jamais révélé) — une entrée par signalement, catégorie `QUESTION` |
 | `UserSuspendedEvent`    | `ACCOUNT_SUSPENDED` pour le joueur suspendu (sourceId = suspensionId, sans acteur) — catégorie `ACCOUNT` **obligatoire**, ignorée par les préférences |
 | `RoomCompletedEvent`     | — mais rattache le `gameId` créé aux `ROOM_ACCEPTED` (deep link arène) et expire les relances pendantes |
 
