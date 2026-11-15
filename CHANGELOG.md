@@ -1,3 +1,9 @@
+## [1.0.2](https://github.com/joutio/joutio-notification/compare/v1.0.1...v1.0.2) (2026-11-15)
+
+### Bug Fixes
+
+* **deps:** bump joutio-theme-domain to 3.6.0 ([c9de264](https://github.com/joutio/joutio-notification/commit/c9de264b4dd86a863f37d92e1245b71006a995f1))
+
 ## [1.0.1](https://github.com/joutio/joutio-notification/compare/v1.0.0...v1.0.1) (2026-11-10)
 
 ### Bug Fixes
