@@ -1,3 +1,9 @@
+## [1.0.5](https://github.com/joutio/joutio-notification/compare/v1.0.4...v1.0.5) (2026-11-17)
+
+### Bug Fixes
+
+* **deps:** pin joutio-theme-domain 3.8.3, 3.6.0 is no longer published ([73c9c96](https://github.com/joutio/joutio-notification/commit/73c9c96df55df51a5368944edcb2bfa36223a5fb))
+
 ## [1.0.4](https://github.com/joutio/joutio-notification/compare/v1.0.3...v1.0.4) (2026-11-17)
 
 ### Bug Fixes
