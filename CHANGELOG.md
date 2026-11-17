@@ -1,3 +1,9 @@
+## [1.0.3](https://github.com/joutio/joutio-notification/compare/v1.0.2...v1.0.3) (2026-11-17)
+
+### Bug Fixes
+
+* **deps:** joutio-parent 1.1.0, unknown enum constants tolerated on the Axon transport ([971d451](https://github.com/joutio/joutio-notification/commit/971d451055c44ef1fecdd826a0b6b0af4069681c))
+
 ## [1.0.2](https://github.com/joutio/joutio-notification/compare/v1.0.1...v1.0.2) (2026-11-15)
 
 ### Bug Fixes
