@@ -64,5 +64,5 @@ mvn -pl joutio-notification-infrastructure test
 
 ## Pièges
 
-- `NotificationIngestionHandler` lit l'event store directement : ce n'est pas conforme à la règle
-  de l'adaptateur dédié (`docs/ROADMAP.md`, Dette).
+- `NotificationIngestionHandler` vérifie qu'un agrégat existe par `NotificationEventStorePort` (adaptateur
+  `NotificationEventStoreAdapter`), jamais par l'`EventStore` lui-même.

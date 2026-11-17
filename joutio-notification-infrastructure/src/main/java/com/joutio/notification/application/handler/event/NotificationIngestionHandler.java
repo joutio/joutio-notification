@@ -9,6 +9,7 @@ import com.joutio.notification.domain.model.Notification;
 import com.joutio.notification.domain.model.NotificationCategory;
 import com.joutio.notification.domain.model.NotificationPreference;
 import com.joutio.notification.domain.model.NotificationType;
+import com.joutio.notification.domain.port.out.NotificationEventStorePort;
 import com.joutio.notification.domain.port.out.NotificationPreferenceRepositoryPort;
 import com.joutio.notification.domain.port.out.NotificationRepositoryPort;
 import com.joutio.social.domain.event.UserFollowerEvent;
@@ -17,7 +18,6 @@ import com.joutio.theme.domain.event.TopicEvent.TopicUnpublishedAfterAccountDele
 import org.axonframework.commandhandling.gateway.CommandGateway;
 import org.axonframework.config.ProcessingGroup;
 import org.axonframework.eventhandling.EventHandler;
-import org.axonframework.eventsourcing.eventstore.EventStore;
 import org.axonframework.modelling.command.AggregateStreamCreationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,12 +50,12 @@ public class NotificationIngestionHandler {
     private final CommandGateway commandGateway;
     private final NotificationRepositoryPort notificationRepository;
     private final NotificationPreferenceRepositoryPort preferenceRepository;
-    private final EventStore eventStore;
+    private final NotificationEventStorePort eventStore;
 
     public NotificationIngestionHandler(CommandGateway commandGateway,
                                         NotificationRepositoryPort notificationRepository,
                                         NotificationPreferenceRepositoryPort preferenceRepository,
-                                        EventStore eventStore) {
+                                        NotificationEventStorePort eventStore) {
         this.commandGateway = commandGateway;
         this.notificationRepository = notificationRepository;
         this.preferenceRepository = preferenceRepository;
@@ -290,7 +290,7 @@ public class NotificationIngestionHandler {
     }
 
     private boolean aggregateExists(String notificationId) {
-        return eventStore.readEvents(notificationId).hasNext();
+        return eventStore.exists(notificationId);
     }
 
     private static boolean isAggregateAlreadyCreated(Throwable error) {

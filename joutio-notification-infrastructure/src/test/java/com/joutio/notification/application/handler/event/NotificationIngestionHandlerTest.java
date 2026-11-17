@@ -14,8 +14,7 @@ import com.joutio.notification.domain.port.out.NotificationRepositoryPort;
 import com.joutio.social.domain.event.UserFollowerEvent;
 import com.joutio.theme.domain.event.QuestionReportEvent;
 import org.axonframework.commandhandling.gateway.CommandGateway;
-import org.axonframework.eventsourcing.eventstore.DomainEventStream;
-import org.axonframework.eventsourcing.eventstore.EventStore;
+import com.joutio.notification.domain.port.out.NotificationEventStorePort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -47,14 +46,13 @@ class NotificationIngestionHandlerTest {
     private final CommandGateway commandGateway = mock(CommandGateway.class);
     private final NotificationRepositoryPort notificationRepository = mock(NotificationRepositoryPort.class);
     private final NotificationPreferenceRepositoryPort preferenceRepository = mock(NotificationPreferenceRepositoryPort.class);
-    private final EventStore eventStore = mock(EventStore.class);
-    private final DomainEventStream absentAggregate = mock(DomainEventStream.class);
+    private final NotificationEventStorePort eventStore = mock(NotificationEventStorePort.class);
     private final NotificationIngestionHandler handler = new NotificationIngestionHandler(
             commandGateway, notificationRepository, preferenceRepository, eventStore);
 
     @BeforeEach
     void setUp() {
-        when(eventStore.readEvents(anyString())).thenReturn(absentAggregate);
+        when(eventStore.exists(anyString())).thenReturn(false);
     }
 
     @Test
@@ -295,9 +293,7 @@ class NotificationIngestionHandlerTest {
 
     @Test
     void followReplayedAfterDelete_isSkippedWhenAggregateExists() {
-        DomainEventStream existingAggregate = mock(DomainEventStream.class);
-        when(existingAggregate.hasNext()).thenReturn(true);
-        when(eventStore.readEvents(anyString())).thenReturn(existingAggregate);
+        when(eventStore.exists(anyString())).thenReturn(true);
 
         handler.on(new UserFollowerEvent.UserFollowedEvent("follow-1", "actor-1", "user-1", AT));
 
