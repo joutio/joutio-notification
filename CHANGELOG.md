@@ -1,3 +1,9 @@
+## [1.0.4](https://github.com/joutio/joutio-notification/compare/v1.0.3...v1.0.4) (2026-11-17)
+
+### Bug Fixes
+
+* **deps:** joutio-parent 1.2.0, segmented processing groups and single-partition Axon topic ([46a644b](https://github.com/joutio/joutio-notification/commit/46a644bc26f8f0595243bd695b587e4eee531c18))
+
 ## [1.0.3](https://github.com/joutio/joutio-notification/compare/v1.0.2...v1.0.3) (2026-11-17)
 
 ### Bug Fixes
