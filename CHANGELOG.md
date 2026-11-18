@@ -1,3 +1,9 @@
+## [1.0.6](https://github.com/joutio/joutio-notification/compare/v1.0.5...v1.0.6) (2026-11-18)
+
+### Bug Fixes
+
+* **deps:** joutio-parent 2.0.0, idle-friendly processors and bytea Axon schema ([fde8d12](https://github.com/joutio/joutio-notification/commit/fde8d12cd20d5340399320dbedf7d462a20aeace))
+
 ## [1.0.5](https://github.com/joutio/joutio-notification/compare/v1.0.4...v1.0.5) (2026-11-17)
 
 ### Bug Fixes
