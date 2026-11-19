@@ -4,6 +4,8 @@ package com.joutio.notification.domain.model;
 public enum NotificationCategory {
     FOLLOW,
     ROOM,
+    /** Revanches : défi nominatif lancé depuis le résultat d'une partie (porte son {@code gameId}). */
+    REMATCH,
     /** Signalements de questions déposés sur les sujets du joueur. */
     QUESTION,
     /** Informations obligatoires sur le compte (suspension). */

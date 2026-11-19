@@ -265,9 +265,9 @@ public class NotificationIngestionHandler {
         // obligatoires : elles ignorent les préférences.
         if (type != NotificationType.ACCOUNT_SUSPENDED
                 && type != NotificationType.TOPIC_DRAFTED
-                && !isEnabled(userId, type.category())) {
+                && !isEnabled(userId, type.category(gameId))) {
             logger.debug("Notification {} ignorée (préférence {} désactivée) pour {}",
-                    type, type.category(), userId);
+                    type, type.category(gameId), userId);
             return;
         }
         // Le read model seul ne suffit pas : après une suppression (hard delete), une relecture

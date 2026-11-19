@@ -131,6 +131,21 @@ class NotificationIngestionHandlerTest {
         assertThat(captor.getValue().expiresAt()).isEqualTo(AT.plusSeconds(10));
     }
 
+    /** Revanche coupée par le joueur : rien n'est créé, alors qu'un défi ordinaire (ROOM) passe toujours. */
+    @Test
+    void rematch_respectsTheRematchPreferenceOnly() {
+        when(preferenceRepository.find("opponent", NotificationCategory.REMATCH))
+                .thenReturn(Optional.of(new NotificationPreference("opponent", NotificationCategory.REMATCH, false, AT)));
+
+        handler.on(new ChallengeEvent.ChallengeCreatedEvent(
+                "challenge-1", "topic-1", "challenger", "opponent", "game-1", AT.plusSeconds(10), AT));
+        verifyNoInteractions(commandGateway);
+
+        handler.on(new ChallengeEvent.ChallengeCreatedEvent(
+                "challenge-2", "topic-1", "challenger", "opponent", null, AT.plusSeconds(3600), AT));
+        verify(commandGateway).send(org.mockito.ArgumentMatchers.any(NotificationCommand.CreateNotificationCommand.class));
+    }
+
     @Test
     void challengeAccepted_expiresInvitationAndNotifiesChallengerWithRoomId() {
         handler.on(new ChallengeEvent.ChallengeAcceptedEvent(

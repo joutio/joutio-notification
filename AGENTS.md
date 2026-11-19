@@ -16,7 +16,8 @@ Lire : `../../AGENTS.md`, [`docs/backend/`](../../docs/backend/hexagonal.md).
   - fan-out sans état : `MarkAllNotificationsReadCommand`, `DeleteAllNotificationsCommand`.
 - **`NotificationPreferenceAggregate`** : `UpdateNotificationPreferenceCommand`
   (`CREATE_IF_MISSING`).
-  - Catégories `FOLLOW|ROOM|QUESTION` réglables, activées par défaut.
+  - Catégories `FOLLOW|ROOM|REMATCH|QUESTION` réglables, activées par défaut. Un `CHALLENGE_RECEIVED` portant un
+    `gameId` (revanche) relève de `REMATCH` (`NotificationType.category(gameId)`).
   - `ACCOUNT` est obligatoire et ignore les préférences.
   - Une notification d'une catégorie coupée n'est pas créée.
 - Le service publie `NotificationCreatedEvent`, que le BFF pousse en STOMP, Web Push et push Expo.

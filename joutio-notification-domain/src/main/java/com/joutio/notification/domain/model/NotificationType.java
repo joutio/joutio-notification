@@ -24,9 +24,14 @@ public enum NotificationType {
     /** Information obligatoire : le compte du joueur a été suspendu. */
     ACCOUNT_SUSPENDED;
 
-    public NotificationCategory category() {
+    /**
+     * Catégorie de préférence d'une notification de ce type ; {@code gameId} distingue une revanche (défi lancé depuis
+     * une partie) d'un défi ordinaire.
+     */
+    public NotificationCategory category(String gameId) {
         return switch (this) {
             case FOLLOW -> NotificationCategory.FOLLOW;
+            case CHALLENGE_RECEIVED -> gameId == null ? NotificationCategory.ROOM : NotificationCategory.REMATCH;
             case QUESTION_REPORTED, TOPIC_DRAFTED -> NotificationCategory.QUESTION;
             case ACCOUNT_SUSPENDED -> NotificationCategory.ACCOUNT;
             default -> NotificationCategory.ROOM;
