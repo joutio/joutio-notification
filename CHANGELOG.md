@@ -1,3 +1,9 @@
+## [1.0.7](https://github.com/joutio/joutio-notification/compare/v1.0.6...v1.0.7) (2026-11-19)
+
+### Bug Fixes
+
+* **deps:** joutio-parent 2.1.0, consistent command routing across replicas ([f0b04bf](https://github.com/joutio/joutio-notification/commit/f0b04bf02afb12c369db38898178e8e2f79d4f3d))
+
 ## [1.0.6](https://github.com/joutio/joutio-notification/compare/v1.0.5...v1.0.6) (2026-11-18)
 
 ### Bug Fixes
