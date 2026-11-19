@@ -1,3 +1,9 @@
+## [1.1.0](https://github.com/joutio/joutio-notification/compare/v1.0.7...v1.1.0) (2026-11-19)
+
+### Features
+
+* **preferences:** REMATCH notification category ([98666a9](https://github.com/joutio/joutio-notification/commit/98666a91bc7e3d021042f6a1059a6b11e70ceb95))
+
 ## [1.0.7](https://github.com/joutio/joutio-notification/compare/v1.0.6...v1.0.7) (2026-11-19)
 
 ### Bug Fixes
