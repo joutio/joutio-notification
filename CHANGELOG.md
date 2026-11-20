@@ -1,3 +1,9 @@
+## [1.2.0](https://github.com/joutio/joutio-notification/compare/v1.1.7...v1.2.0) (2026-11-20)
+
+### Features
+
+* **notification:** fresh challenge invitation on reminder ([6529cfb](https://github.com/joutio/joutio-notification/commit/6529cfb4250ae2934ebb4f3c0532a0e3229a42f0))
+
 ## [1.1.7](https://github.com/joutio/joutio-notification/compare/v1.1.6...v1.1.7) (2026-11-20)
 
 ### Bug Fixes
