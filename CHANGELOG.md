@@ -1,3 +1,9 @@
+## [1.1.2](https://github.com/joutio/joutio-notification/compare/v1.1.1...v1.1.2) (2026-11-20)
+
+### Bug Fixes
+
+* **deps:** joutio-parent 2.2.1, distinct Kafka consumer metrics ([d5246ea](https://github.com/joutio/joutio-notification/commit/d5246ea2021ba442ace2ed3bb515dc03a0a7cec1))
+
 ## [1.1.1](https://github.com/joutio/joutio-notification/compare/v1.1.0...v1.1.1) (2026-11-20)
 
 ### Bug Fixes
