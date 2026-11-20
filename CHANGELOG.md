@@ -1,3 +1,9 @@
+## [1.1.7](https://github.com/joutio/joutio-notification/compare/v1.1.6...v1.1.7) (2026-11-20)
+
+### Bug Fixes
+
+* **deps:** joutio-parent 2.4.1 with patched dependencies ([b215f71](https://github.com/joutio/joutio-notification/commit/b215f716675344318497322e0d1f12343186d110))
+
 ## [1.1.6](https://github.com/joutio/joutio-notification/compare/v1.1.5...v1.1.6) (2026-11-20)
 
 ### Performance Improvements
