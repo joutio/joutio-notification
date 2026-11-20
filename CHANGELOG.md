@@ -1,3 +1,9 @@
+## [1.1.1](https://github.com/joutio/joutio-notification/compare/v1.1.0...v1.1.1) (2026-11-20)
+
+### Bug Fixes
+
+* **deps:** joutio-parent 2.2.0, kafka consumer, segment and rebalancer metrics ([4d7fec3](https://github.com/joutio/joutio-notification/commit/4d7fec30a8a509870f7e6a5580efa8c8c999c5e2))
+
 ## [1.1.0](https://github.com/joutio/joutio-notification/compare/v1.0.7...v1.1.0) (2026-11-19)
 
 ### Features
