@@ -211,6 +211,37 @@ class NotificationIngestionHandlerTest {
     }
 
     @Test
+    void challengeReminded_replacesTheInvitationWithAFreshUnreadOne() {
+        Notification invitation = Notification.builder()
+                .notificationId("notification-1")
+                .userId("opponent")
+                .type(NotificationType.CHALLENGE_RECEIVED)
+                .actorId("challenger")
+                .sourceId("challenge-1")
+                .createdAt(AT.minusSeconds(900))
+                .build();
+        when(notificationRepository.findBySourceIdAndType("challenge-1", NotificationType.CHALLENGE_RECEIVED))
+                .thenReturn(List.of(invitation));
+
+        handler.on(new ChallengeEvent.ChallengeRemindedEvent("challenge-1", "topic-1", "challenger", "opponent", null,
+                AT.plusSeconds(2700), AT, AT.plusSeconds(600)));
+
+        ArgumentCaptor<NotificationCommand.DeleteNotificationCommand> deleteCaptor =
+                ArgumentCaptor.forClass(NotificationCommand.DeleteNotificationCommand.class);
+        verify(commandGateway).sendAndWait(deleteCaptor.capture());
+        assertThat(deleteCaptor.getValue().notificationId()).isEqualTo("notification-1");
+
+        ArgumentCaptor<NotificationCommand.CreateNotificationCommand> createCaptor =
+                ArgumentCaptor.forClass(NotificationCommand.CreateNotificationCommand.class);
+        verify(commandGateway).send(createCaptor.capture());
+        assertThat(createCaptor.getValue().userId()).isEqualTo("opponent");
+        assertThat(createCaptor.getValue().type()).isEqualTo(NotificationType.CHALLENGE_RECEIVED);
+        assertThat(createCaptor.getValue().sourceId()).isEqualTo("challenge-1");
+        assertThat(createCaptor.getValue().expiresAt()).isEqualTo(AT.plusSeconds(2700));
+        assertThat(createCaptor.getValue().notificationId()).isNotEqualTo("notification-1");
+    }
+
+    @Test
     void challengeExpired_expiresTheInvitationWithoutNotification() {
         handler.on(new ChallengeEvent.ChallengeExpiredEvent("challenge-1", AT));
 
@@ -279,7 +310,7 @@ class NotificationIngestionHandlerTest {
 
     @Test
     void roomEntered_expiresTheWizzOfTheArrivingPlayer() {
-        handler.on(new RoomEvent.RoomEnteredEvent("room-1", "opponent", null, AT));
+        handler.on(new RoomEvent.RoomEnteredEvent("room-1", "opponent", null, AT, "presence-1", java.util.Set.of("opponent")));
 
         verify(notificationRepository).expireBySourceIdAndTypeAndUserId(
                 "room-1", NotificationType.WIZZ, "opponent", AT);

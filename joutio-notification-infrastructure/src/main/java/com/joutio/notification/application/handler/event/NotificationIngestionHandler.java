@@ -25,7 +25,6 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -117,6 +116,20 @@ public class NotificationIngestionHandler {
     }
 
     /**
+     * Défi relancé : l'invitation reste **unique par défi**. La précédente est supprimée (push
+     * {@code NOTIFICATION_DELETED}) puis recréée non lue, en tête : nouveau toast, nouveau push. L'identifiant
+     * déterministe inclut l'horodatage de la relance (relecture Kafka reproductible malgré le remplacement).
+     */
+    @EventHandler
+    public void on(ChallengeEvent.ChallengeRemindedEvent event) {
+        deleteAll(event.challengeId(), NotificationType.CHALLENGE_RECEIVED);
+        createIfAllowed(event.opponentId(), NotificationType.CHALLENGE_RECEIVED, event.challengerId(),
+                event.challengeId(), event.topicId(), event.gameId(), event.expiresAt(),
+                deterministicId(NotificationType.CHALLENGE_RECEIVED,
+                        event.challengeId() + "@" + event.remindedAt().toEpochMilli(), event.opponentId()));
+    }
+
+    /**
      * Défi accepté : l'invitation n'est plus actionnable et le lanceur est notifié de
      * l'acceptation (sourceId = roomId déterministe) ; la salle n'est pas encore rejointe.
      */
@@ -141,18 +154,7 @@ public class NotificationIngestionHandler {
      */
     @EventHandler
     public void on(ChallengeEvent.ChallengeCancelledEvent event) {
-        List<Notification> invitations = notificationRepository.findBySourceIdAndType(
-                event.challengeId(), NotificationType.CHALLENGE_RECEIVED);
-        for (Notification invitation : invitations) {
-            try {
-                commandGateway.sendAndWait(new NotificationCommand.DeleteNotificationCommand(
-                        invitation.notificationId(), invitation.userId()));
-            } catch (RuntimeException error) {
-                // Déjà supprimée (course avec l'utilisateur) : plus rien à faire.
-                logger.debug("Invitation {} déjà absente à l'annulation: {}",
-                        invitation.notificationId(), error.toString());
-            }
-        }
+        deleteAll(event.challengeId(), NotificationType.CHALLENGE_RECEIVED);
     }
 
     @EventHandler
@@ -178,7 +180,7 @@ public class NotificationIngestionHandler {
      */
     @EventHandler
     public void on(RoomEvent.RoomWizzedEvent event) {
-        replaceRoomWizz(event.roomId());
+        deleteAll(event.roomId(), NotificationType.WIZZ);
         createIfAllowed(event.targetId(), NotificationType.WIZZ, event.playerId(), event.roomId(),
                 null, null, null,
                 deterministicId(NotificationType.WIZZ,
@@ -224,16 +226,15 @@ public class NotificationIngestionHandler {
 
     // =====================================================================
 
-    /** Remplace la relance précédente d'une salle (au plus une entrée WIZZ par salle). */
-    private void replaceRoomWizz(String roomId) {
-        for (Notification previous : notificationRepository.findBySourceIdAndType(
-                roomId, NotificationType.WIZZ)) {
+    /** Supprime les entrées d'une source (relance remplacée, invitation annulée). */
+    private void deleteAll(String sourceId, NotificationType type) {
+        for (Notification previous : notificationRepository.findBySourceIdAndType(sourceId, type)) {
             try {
                 commandGateway.sendAndWait(new NotificationCommand.DeleteNotificationCommand(
                         previous.notificationId(), previous.userId()));
             } catch (RuntimeException error) {
                 // Déjà supprimée (course avec l'utilisateur) : plus rien à faire.
-                logger.debug("Relance {} déjà absente au remplacement: {}",
+                logger.debug("Notification {} déjà absente à la suppression: {}",
                         previous.notificationId(), error.toString());
             }
         }
