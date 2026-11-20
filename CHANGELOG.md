@@ -1,3 +1,9 @@
+## [1.1.4](https://github.com/joutio/joutio-notification/compare/v1.1.3...v1.1.4) (2026-11-20)
+
+### Bug Fixes
+
+* **deps:** joutio-parent 2.4.0, instance-scoped groups on one Kafka consumer per pod ([7a0e2f3](https://github.com/joutio/joutio-notification/commit/7a0e2f32d31d86dcb191a0e004625ece66d04669))
+
 ## [1.1.3](https://github.com/joutio/joutio-notification/compare/v1.1.2...v1.1.3) (2026-11-20)
 
 ### Bug Fixes
