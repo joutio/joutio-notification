@@ -1,3 +1,9 @@
+## [1.1.6](https://github.com/joutio/joutio-notification/compare/v1.1.5...v1.1.6) (2026-11-20)
+
+### Performance Improvements
+
+* **docker:** JDK 25 AOT cache at startup ([ad62ca9](https://github.com/joutio/joutio-notification/commit/ad62ca92c34b3a528916dd0e07b68570db8e1cd1))
+
 ## [1.1.5](https://github.com/joutio/joutio-notification/compare/v1.1.4...v1.1.5) (2026-11-20)
 
 ### Bug Fixes
