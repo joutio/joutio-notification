@@ -1,3 +1,9 @@
+## [1.1.5](https://github.com/joutio/joutio-notification/compare/v1.1.4...v1.1.5) (2026-11-20)
+
+### Bug Fixes
+
+* **docker:** rebuild on patched base images ([ca4db07](https://github.com/joutio/joutio-notification/commit/ca4db076c3acf4d11393975ba12065040f60dfe6))
+
 ## [1.1.4](https://github.com/joutio/joutio-notification/compare/v1.1.3...v1.1.4) (2026-11-20)
 
 ### Bug Fixes
