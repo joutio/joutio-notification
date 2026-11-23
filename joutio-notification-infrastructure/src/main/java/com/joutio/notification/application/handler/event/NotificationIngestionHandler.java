@@ -3,7 +3,7 @@ package com.joutio.notification.application.handler.event;
 import com.joutio.identity.domain.event.UserEvent;
 import com.joutio.matchmaking.domain.event.ChallengeEvent;
 import com.joutio.matchmaking.domain.event.RoomEvent;
-import com.joutio.matchmaking.domain.model.ChallengeRoomId;
+import com.joutio.matchmaking.domain.model.RoomOrigin;
 import com.joutio.notification.domain.command.NotificationCommand;
 import com.joutio.notification.domain.model.Notification;
 import com.joutio.notification.domain.model.NotificationCategory;
@@ -130,14 +130,13 @@ public class NotificationIngestionHandler {
     }
 
     /**
-     * Défi accepté : l'invitation n'est plus actionnable et le lanceur est notifié de
-     * l'acceptation (sourceId = roomId déterministe) ; la salle n'est pas encore rejointe.
+     * Défi accepté : l'invitation n'est plus actionnable. La notification d'acceptation au lanceur
+     * est créée à la création effective de la salle (cf. {@code RoomCreatedEvent}), pour ne jamais
+     * révéler un {@code roomId} avant que la salle existe.
      */
     @EventHandler
     public void on(ChallengeEvent.ChallengeAcceptedEvent event) {
         notificationRepository.expireChallengeInvitations(event.challengeId(), event.acceptedAt());
-        createIfAllowed(event.challengerId(), NotificationType.ROOM_ACCEPTED, event.opponentId(),
-                ChallengeRoomId.of(event.challengeId()), event.topicId(), null, null);
     }
 
     @EventHandler
@@ -222,6 +221,19 @@ public class NotificationIngestionHandler {
     public void on(RoomEvent.RoomFailedEvent event) {
         notificationRepository.expireBySourceIdAndType(
                 event.roomId(), NotificationType.WIZZ, event.failedAt());
+    }
+
+    /**
+     * Salle de défi créée : le lanceur est notifié de l'acceptation (sourceId = roomId) seulement
+     * maintenant, pour que le client n'apprenne jamais un roomId avant que la salle existe.
+     */
+    @EventHandler
+    public void on(RoomEvent.RoomCreatedEvent event) {
+        if (event.origin() != RoomOrigin.CHALLENGE && event.origin() != RoomOrigin.REMATCH) {
+            return;
+        }
+        createIfAllowed(event.initiatorId(), NotificationType.ROOM_ACCEPTED, event.opponentId(),
+                event.roomId(), event.topicId(), null, null);
     }
 
     // =====================================================================

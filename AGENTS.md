@@ -28,7 +28,8 @@ Lire : `../../AGENTS.md`, [`docs/backend/`](../../docs/backend/hexagonal.md).
 |---|---|
 | `UserFollowedEvent` | `FOLLOW` pour le joueur suivi |
 | `ChallengeCreatedEvent` | `CHALLENGE_RECEIVED` pour l'invité (`gameId` d'origine et expiration 10 s si revanche) |
-| `ChallengeAcceptedEvent` | `ROOM_ACCEPTED` pour le lanceur (salle dérivée par `ChallengeRoomId`) ; invitation expirée |
+| `ChallengeAcceptedEvent` | invitation expirée |
+| `RoomCreatedEvent` (`CHALLENGE`/`REMATCH`) | `ROOM_ACCEPTED` pour le lanceur (`sourceId = roomId`), créée à la création effective de la salle — jamais avant |
 | `ChallengeDeclinedEvent` | `CHALLENGE_DECLINED` pour le lanceur ; invitation expirée |
 | `ChallengeRemindedEvent` | invitation remplacée : l'ancienne supprimée, une nouvelle `CHALLENGE_RECEIVED` non lue (push) |
 | `ChallengeCancelledEvent` | invitation **supprimée** (le BFF pousse `NOTIFICATION_DELETED`) |

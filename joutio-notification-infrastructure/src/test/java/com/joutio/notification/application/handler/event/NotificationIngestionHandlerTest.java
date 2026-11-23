@@ -3,7 +3,7 @@ package com.joutio.notification.application.handler.event;
 import com.joutio.identity.domain.event.UserEvent;
 import com.joutio.matchmaking.domain.event.ChallengeEvent;
 import com.joutio.matchmaking.domain.event.RoomEvent;
-import com.joutio.matchmaking.domain.model.ChallengeRoomId;
+import com.joutio.matchmaking.domain.model.RoomOrigin;
 import com.joutio.notification.domain.command.NotificationCommand;
 import com.joutio.notification.domain.model.Notification;
 import com.joutio.notification.domain.model.NotificationCategory;
@@ -147,11 +147,20 @@ class NotificationIngestionHandlerTest {
     }
 
     @Test
-    void challengeAccepted_expiresInvitationAndNotifiesChallengerWithRoomId() {
+    void challengeAccepted_expiresInvitation() {
         handler.on(new ChallengeEvent.ChallengeAcceptedEvent(
                 "challenge-1", "topic-1", "challenger", "opponent", AT));
 
         verify(notificationRepository).expireChallengeInvitations("challenge-1", AT);
+        // L'acceptation ne notifie pas encore : le lanceur est prévenu à la création de la salle.
+        verifyNoInteractions(commandGateway);
+    }
+
+    @Test
+    void roomCreated_withChallengeOrigin_notifiesChallengerWithRoomId() {
+        handler.on(new RoomEvent.RoomCreatedEvent(
+                "room-1", "topic-1", "challenger", "opponent", false, null,
+                RoomOrigin.CHALLENGE, AT.plusSeconds(3600), AT));
 
         ArgumentCaptor<NotificationCommand.CreateNotificationCommand> captor =
                 ArgumentCaptor.forClass(NotificationCommand.CreateNotificationCommand.class);
@@ -159,8 +168,17 @@ class NotificationIngestionHandlerTest {
         assertThat(captor.getValue().userId()).isEqualTo("challenger");
         assertThat(captor.getValue().type()).isEqualTo(NotificationType.ROOM_ACCEPTED);
         assertThat(captor.getValue().actorId()).isEqualTo("opponent");
-        assertThat(captor.getValue().sourceId()).isEqualTo(ChallengeRoomId.of("challenge-1"));
+        assertThat(captor.getValue().sourceId()).isEqualTo("room-1");
         assertThat(captor.getValue().topicId()).isEqualTo("topic-1");
+    }
+
+    @Test
+    void roomCreated_withSharedOrigin_doesNotNotify() {
+        handler.on(new RoomEvent.RoomCreatedEvent(
+                "room-1", "topic-1", "initiator", "opponent", false, null,
+                RoomOrigin.SHARED, AT.plusSeconds(3600), AT));
+
+        verifyNoInteractions(commandGateway);
     }
 
     @Test

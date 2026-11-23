@@ -4,6 +4,7 @@ import com.joutio.notification.domain.model.Notification;
 import com.joutio.notification.domain.model.NotificationPage;
 import com.joutio.notification.domain.model.NotificationType;
 import com.joutio.notification.domain.port.out.NotificationRepositoryPort;
+import com.joutio.notification.infrastructure.out.persistence.entity.NotificationEntity;
 import com.joutio.notification.infrastructure.out.persistence.mapper.NotificationEntityMapper;
 import com.joutio.notification.infrastructure.out.persistence.repository.NotificationJpaRepository;
 import org.springframework.data.domain.PageRequest;
@@ -106,7 +107,7 @@ public class NotificationRepositoryAdapter implements NotificationRepositoryPort
     @Transactional(readOnly = true)
     public List<String> findUnreadIds(String userId) {
         return repository.findByUserIdAndReadAtIsNull(userId).stream()
-                .map(entity -> entity.getNotificationId())
+                .map(NotificationEntity::getNotificationId)
                 .toList();
     }
 
@@ -114,7 +115,7 @@ public class NotificationRepositoryAdapter implements NotificationRepositoryPort
     @Transactional(readOnly = true)
     public List<String> findAllIds(String userId) {
         return repository.findByUserId(userId).stream()
-                .map(entity -> entity.getNotificationId())
+                .map(NotificationEntity::getNotificationId)
                 .toList();
     }
 }
