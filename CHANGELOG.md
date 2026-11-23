@@ -1,3 +1,9 @@
+## [1.3.0](https://github.com/joutio/joutio-notification/compare/v1.2.0...v1.3.0) (2026-11-23)
+
+### Features
+
+* notify challenge acceptance on room creation ([feb6b54](https://github.com/joutio/joutio-notification/commit/feb6b544f08f761bc396d4a3a084766b4db02e19))
+
 ## [1.2.0](https://github.com/joutio/joutio-notification/compare/v1.1.7...v1.2.0) (2026-11-20)
 
 ### Features
