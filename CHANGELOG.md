@@ -1,3 +1,13 @@
+## [2.0.0](https://github.com/joutio/joutio-notification/compare/v1.3.0...v2.0.0) (2026-11-24)
+
+### ⚠ BREAKING CHANGES
+
+* challenge notifications use the room id as sourceId.
+
+### Features
+
+* notify challenges from room events ([7dd04da](https://github.com/joutio/joutio-notification/commit/7dd04da952e81960328ddab2d8dfc417486d2a19))
+
 ## [1.3.0](https://github.com/joutio/joutio-notification/compare/v1.2.0...v1.3.0) (2026-11-23)
 
 ### Features
