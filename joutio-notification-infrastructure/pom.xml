@@ -18,7 +18,7 @@
         <!-- 2.4.0 : RoomOrigin (origine d'une salle, discrimination défi/revanche à la création). -->
         <joutio.matchmaking-domain.version>3.0.0</joutio.matchmaking-domain.version>
         <!-- Pin release du contrat theme (signalements de questions). -->
-        <joutio.theme-domain.version>3.8.3</joutio.theme-domain.version>
+        <joutio.theme-domain.version>3.9.7</joutio.theme-domain.version>
         <!-- Pin du contrat identity (suspension de compte). -->
         <!-- 2.9.0 : motifs de suspension de compte étendus (UserSuspendedEvent). -->
         <joutio.identity-domain.version>1.0.0</joutio.identity-domain.version>
