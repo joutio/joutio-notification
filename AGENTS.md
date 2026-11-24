@@ -27,21 +27,21 @@ Lire : `../../AGENTS.md`, [`docs/backend/`](../../docs/backend/hexagonal.md).
 | Événement | Effet |
 |---|---|
 | `UserFollowedEvent` | `FOLLOW` pour le joueur suivi |
-| `ChallengeCreatedEvent` | `CHALLENGE_RECEIVED` pour l'invité (`gameId` d'origine et expiration 10 s si revanche) |
-| `ChallengeAcceptedEvent` | invitation expirée |
-| `RoomCreatedEvent` (`CHALLENGE`/`REMATCH`) | `ROOM_ACCEPTED` pour le lanceur (`sourceId = roomId`), créée à la création effective de la salle — jamais avant |
-| `ChallengeDeclinedEvent` | `CHALLENGE_DECLINED` pour le lanceur ; invitation expirée |
-| `ChallengeRemindedEvent` | invitation remplacée : l'ancienne supprimée, une nouvelle `CHALLENGE_RECEIVED` non lue (push) |
-| `ChallengeCancelledEvent` | invitation **supprimée** (le BFF pousse `NOTIFICATION_DELETED`) |
-| `ChallengeExpired/PurgedEvent` | invitation expirée |
-| `RoomWizzedEvent` | `WIZZ` : une entrée par salle, remplacée à chaque relance |
-| `RoomEnteredEvent`, `RoomCompleted/Cancelled/Expired/FailedEvent` | expirent la relance en attente ; `RoomCompletedEvent` rattache le `gameId` aux `ROOM_ACCEPTED` (lien vers l'arène après la purge de la salle) |
+| `RoomCreatedEvent` (`CHALLENGE`/`REMATCH`, salle `INVITED`) | `CHALLENGE_RECEIVED` pour l'invité (`gameId` d'origine et expiration 10 s si revanche) |
+| `RoomRemindedEvent` `INVITATION` | invitation remplacée : l'ancienne supprimée, une nouvelle `CHALLENGE_RECEIVED` non lue (push) |
+| `RoomRemindedEvent` `PRESENCE` | `WIZZ` : une entrée par salle, remplacée à chaque relance |
+| `RoomAcceptedEvent` | invitation expirée ; `ROOM_ACCEPTED` pour le lanceur |
+| `RoomDeclinedEvent` | invitation expirée ; `CHALLENGE_DECLINED` pour le lanceur |
+| `RoomCancelledEvent` | invitation **supprimée** (le BFF pousse `NOTIFICATION_DELETED`) ; relance expirée |
+| `RoomExpired/PurgedEvent` | invitation et relance expirées |
+| `RoomEnteredEvent`, `RoomFailedEvent` | expirent la relance en attente |
+| `RoomCompletedEvent` | relance expirée ; rattache le `gameId` aux `ROOM_ACCEPTED` (lien vers l'arène après la purge de la salle) |
 | `QuestionReportedEvent` | `QUESTION_REPORTED` pour le créateur du sujet, **anonyme** (sans acteur) |
 | `UserSuspendedEvent` | `ACCOUNT_SUSPENDED` (catégorie `ACCOUNT`) |
 | `TopicUnpublishedAfterAccountDeletionEvent` | `TOPIC_DRAFTED` pour le propriétaire du sujet |
 
-- Les autres événements de salle et l'appariement public ne vont pas dans l'inbox (temps réel
-  seulement).
+- Toutes les notifications de salle ont `sourceId = roomId`. Les autres événements de salle et
+  l'appariement public ne vont pas dans l'inbox (temps réel seulement).
 - **Idempotence** :
   - `notificationId = UUID(type:sourceId:userId)`, avec garde d'existence et contrainte unique
     `uq_notification_source` ;

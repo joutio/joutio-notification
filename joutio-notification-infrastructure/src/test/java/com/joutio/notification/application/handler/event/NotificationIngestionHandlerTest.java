@@ -1,9 +1,11 @@
 package com.joutio.notification.application.handler.event;
 
 import com.joutio.identity.domain.event.UserEvent;
-import com.joutio.matchmaking.domain.event.ChallengeEvent;
 import com.joutio.matchmaking.domain.event.RoomEvent;
+import com.joutio.matchmaking.domain.model.RoomCancelReason;
 import com.joutio.matchmaking.domain.model.RoomOrigin;
+import com.joutio.matchmaking.domain.model.RoomReminderStage;
+import com.joutio.matchmaking.domain.model.RoomStatus;
 import com.joutio.notification.domain.command.NotificationCommand;
 import com.joutio.notification.domain.model.Notification;
 import com.joutio.notification.domain.model.NotificationCategory;
@@ -22,6 +24,7 @@ import org.mockito.ArgumentCaptor;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -33,8 +36,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Ingestion des événements de domaine : défis (inbox) et salles (pas de notification d'inbox —
- * seul {@code ROOM_COMPLETED} rattache le {@code gameId} à l'acceptation).
+ * Ingestion des événements de domaine : invitations et relances des salles (inbox, {@code sourceId = roomId}),
+ * le reste de la salle restant hors inbox ({@code ROOM_COMPLETED} rattache le {@code gameId} à l'acceptation).
  *
  * <p>La création est idempotente même après un **hard delete** : une relecture Kafka
  * at-least-once ne doit pas tenter de recréer un agrégat existant (poison pill).</p>
@@ -105,30 +108,25 @@ class NotificationIngestionHandlerTest {
     }
 
     @Test
-    void challengeCreated_notifiesTheOpponent() {        handler.on(new ChallengeEvent.ChallengeCreatedEvent(
-                "challenge-1", "topic-1", "challenger", "opponent", null,
-                AT.plusSeconds(3600), AT));
+    void challengeSent_notifiesTheInviteeWithTheRoomAsSource() {
+        handler.on(invited("room-1", RoomOrigin.CHALLENGE, null, AT.plusSeconds(3600)));
 
-        ArgumentCaptor<NotificationCommand.CreateNotificationCommand> captor =
-                ArgumentCaptor.forClass(NotificationCommand.CreateNotificationCommand.class);
-        verify(commandGateway).send(captor.capture());
-        assertThat(captor.getValue().userId()).isEqualTo("opponent");
-        assertThat(captor.getValue().type()).isEqualTo(NotificationType.CHALLENGE_RECEIVED);
-        assertThat(captor.getValue().sourceId()).isEqualTo("challenge-1");
-        assertThat(captor.getValue().gameId()).isNull();
+        NotificationCommand.CreateNotificationCommand created = createdNotification();
+        assertThat(created.userId()).isEqualTo("opponent");
+        assertThat(created.type()).isEqualTo(NotificationType.CHALLENGE_RECEIVED);
+        assertThat(created.actorId()).isEqualTo("challenger");
+        assertThat(created.sourceId()).isEqualTo("room-1");
+        assertThat(created.gameId()).isNull();
+        assertThat(created.expiresAt()).isEqualTo(AT.plusSeconds(3600));
     }
 
     @Test
-    void challengeCreated_rematchCarriesSourceGameId() {
-        handler.on(new ChallengeEvent.ChallengeCreatedEvent(
-                "challenge-1", "topic-1", "challenger", "opponent", "game-1",
-                AT.plusSeconds(10), AT));
+    void rematchSent_carriesTheSourceGame() {
+        handler.on(invited("room-1", RoomOrigin.REMATCH, "game-1", AT.plusSeconds(10)));
 
-        ArgumentCaptor<NotificationCommand.CreateNotificationCommand> captor =
-                ArgumentCaptor.forClass(NotificationCommand.CreateNotificationCommand.class);
-        verify(commandGateway).send(captor.capture());
-        assertThat(captor.getValue().gameId()).isEqualTo("game-1");
-        assertThat(captor.getValue().expiresAt()).isEqualTo(AT.plusSeconds(10));
+        NotificationCommand.CreateNotificationCommand created = createdNotification();
+        assertThat(created.gameId()).isEqualTo("game-1");
+        assertThat(created.expiresAt()).isEqualTo(AT.plusSeconds(10));
     }
 
     /** Revanche coupée par le joueur : rien n'est créé, alors qu'un défi ordinaire (ROOM) passe toujours. */
@@ -137,187 +135,125 @@ class NotificationIngestionHandlerTest {
         when(preferenceRepository.find("opponent", NotificationCategory.REMATCH))
                 .thenReturn(Optional.of(new NotificationPreference("opponent", NotificationCategory.REMATCH, false, AT)));
 
-        handler.on(new ChallengeEvent.ChallengeCreatedEvent(
-                "challenge-1", "topic-1", "challenger", "opponent", "game-1", AT.plusSeconds(10), AT));
+        handler.on(invited("room-1", RoomOrigin.REMATCH, "game-1", AT.plusSeconds(10)));
         verifyNoInteractions(commandGateway);
 
-        handler.on(new ChallengeEvent.ChallengeCreatedEvent(
-                "challenge-2", "topic-1", "challenger", "opponent", null, AT.plusSeconds(3600), AT));
-        verify(commandGateway).send(org.mockito.ArgumentMatchers.any(NotificationCommand.CreateNotificationCommand.class));
+        handler.on(invited("room-2", RoomOrigin.CHALLENGE, null, AT.plusSeconds(3600)));
+        verify(commandGateway).send(any(NotificationCommand.CreateNotificationCommand.class));
     }
 
     @Test
-    void challengeAccepted_expiresInvitation() {
-        handler.on(new ChallengeEvent.ChallengeAcceptedEvent(
-                "challenge-1", "topic-1", "challenger", "opponent", AT));
-
-        verify(notificationRepository).expireChallengeInvitations("challenge-1", AT);
-        // L'acceptation ne notifie pas encore : le lanceur est prévenu à la création de la salle.
-        verifyNoInteractions(commandGateway);
-    }
-
-    @Test
-    void roomCreated_withChallengeOrigin_notifiesChallengerWithRoomId() {
+    void sharedOrMatchmakingRoom_doesNotNotify() {
         handler.on(new RoomEvent.RoomCreatedEvent(
-                "room-1", "topic-1", "challenger", "opponent", false, null,
-                RoomOrigin.CHALLENGE, AT.plusSeconds(3600), AT));
-
-        ArgumentCaptor<NotificationCommand.CreateNotificationCommand> captor =
-                ArgumentCaptor.forClass(NotificationCommand.CreateNotificationCommand.class);
-        verify(commandGateway).send(captor.capture());
-        assertThat(captor.getValue().userId()).isEqualTo("challenger");
-        assertThat(captor.getValue().type()).isEqualTo(NotificationType.ROOM_ACCEPTED);
-        assertThat(captor.getValue().actorId()).isEqualTo("opponent");
-        assertThat(captor.getValue().sourceId()).isEqualTo("room-1");
-        assertThat(captor.getValue().topicId()).isEqualTo("topic-1");
-    }
-
-    @Test
-    void roomCreated_withSharedOrigin_doesNotNotify() {
+                "room-1", "topic-1", "initiator", null, false, null, RoomOrigin.SHARED, null,
+                RoomStatus.WAITING_PLAYERS, AT.plusSeconds(86_400), AT));
         handler.on(new RoomEvent.RoomCreatedEvent(
-                "room-1", "topic-1", "initiator", "opponent", false, null,
-                RoomOrigin.SHARED, AT.plusSeconds(3600), AT));
+                "room-2", "topic-1", "initiator", "opponent", false, null, RoomOrigin.MATCHMAKING, null,
+                RoomStatus.WAITING_PLAYERS, AT.plusSeconds(86_400), AT));
 
         verifyNoInteractions(commandGateway);
     }
 
     @Test
-    void challengeDeclined_expiresInvitationAndNotifiesChallenger() {
-        handler.on(new ChallengeEvent.ChallengeDeclinedEvent(
-                "challenge-1", "challenger", "opponent", AT));
+    void accepted_expiresTheInvitationAndNotifiesTheChallenger() {
+        handler.on(new RoomEvent.RoomAcceptedEvent(
+                "room-1", "topic-1", "challenger", "opponent", RoomOrigin.CHALLENGE, AT.plusSeconds(86_400), AT));
 
-        verify(notificationRepository).expireChallengeInvitations("challenge-1", AT);
-
-        ArgumentCaptor<NotificationCommand.CreateNotificationCommand> captor =
-                ArgumentCaptor.forClass(NotificationCommand.CreateNotificationCommand.class);
-        verify(commandGateway).send(captor.capture());
-        assertThat(captor.getValue().userId()).isEqualTo("challenger");
-        assertThat(captor.getValue().type()).isEqualTo(NotificationType.CHALLENGE_DECLINED);
-        assertThat(captor.getValue().actorId()).isEqualTo("opponent");
+        verify(notificationRepository).expireBySourceIdAndType("room-1", NotificationType.CHALLENGE_RECEIVED, AT);
+        NotificationCommand.CreateNotificationCommand created = createdNotification();
+        assertThat(created.userId()).isEqualTo("challenger");
+        assertThat(created.type()).isEqualTo(NotificationType.ROOM_ACCEPTED);
+        assertThat(created.actorId()).isEqualTo("opponent");
+        assertThat(created.sourceId()).isEqualTo("room-1");
+        assertThat(created.topicId()).isEqualTo("topic-1");
     }
 
     @Test
-    void challengeCancelled_deletesTheInvitation() {
-        Notification invitation = Notification.builder()
-                .notificationId("notification-1")
-                .userId("opponent")
-                .type(NotificationType.CHALLENGE_RECEIVED)
-                .actorId("challenger")
-                .sourceId("challenge-1")
-                .createdAt(AT)
-                .build();
-        when(notificationRepository.findBySourceIdAndType("challenge-1", NotificationType.CHALLENGE_RECEIVED))
-                .thenReturn(List.of(invitation));
+    void declined_expiresTheInvitationAndNotifiesTheChallenger() {
+        handler.on(new RoomEvent.RoomDeclinedEvent(
+                "room-1", "topic-1", "challenger", "opponent", RoomOrigin.CHALLENGE, AT));
 
-        handler.on(new ChallengeEvent.ChallengeCancelledEvent("challenge-1", "challenger", AT));
+        verify(notificationRepository).expireBySourceIdAndType("room-1", NotificationType.CHALLENGE_RECEIVED, AT);
+        NotificationCommand.CreateNotificationCommand created = createdNotification();
+        assertThat(created.userId()).isEqualTo("challenger");
+        assertThat(created.type()).isEqualTo(NotificationType.CHALLENGE_DECLINED);
+        assertThat(created.actorId()).isEqualTo("opponent");
+        assertThat(created.sourceId()).isEqualTo("room-1");
+    }
+
+    @Test
+    void cancelled_deletesTheInvitationAndExpiresThePendingWizz() {
+        when(notificationRepository.findBySourceIdAndType("room-1", NotificationType.CHALLENGE_RECEIVED))
+                .thenReturn(List.of(notification("notification-1", NotificationType.CHALLENGE_RECEIVED, AT)));
+
+        handler.on(new RoomEvent.RoomCancelledEvent(
+                "room-1", "challenger", RoomCancelReason.PLAYER_CANCELLED, Set.of("challenger", "opponent"), AT));
 
         ArgumentCaptor<NotificationCommand.DeleteNotificationCommand> captor =
                 ArgumentCaptor.forClass(NotificationCommand.DeleteNotificationCommand.class);
         verify(commandGateway).sendAndWait(captor.capture());
         assertThat(captor.getValue().notificationId()).isEqualTo("notification-1");
         assertThat(captor.getValue().userId()).isEqualTo("opponent");
+        verify(notificationRepository).expireBySourceIdAndType("room-1", NotificationType.WIZZ, AT);
     }
 
     @Test
-    void challengeCancelled_withoutInvitation_doesNothing() {
-        when(notificationRepository.findBySourceIdAndType("challenge-1", NotificationType.CHALLENGE_RECEIVED))
+    void cancelled_withoutInvitation_sendsNoCommand() {
+        when(notificationRepository.findBySourceIdAndType("room-1", NotificationType.CHALLENGE_RECEIVED))
                 .thenReturn(List.of());
 
-        handler.on(new ChallengeEvent.ChallengeCancelledEvent("challenge-1", "challenger", AT));
+        handler.on(new RoomEvent.RoomCancelledEvent(
+                "room-1", "initiator", RoomCancelReason.PLAYER_CANCELLED, Set.of("initiator"), AT));
 
         verifyNoInteractions(commandGateway);
     }
 
     @Test
-    void challengeReminded_replacesTheInvitationWithAFreshUnreadOne() {
-        Notification invitation = Notification.builder()
-                .notificationId("notification-1")
-                .userId("opponent")
-                .type(NotificationType.CHALLENGE_RECEIVED)
-                .actorId("challenger")
-                .sourceId("challenge-1")
-                .createdAt(AT.minusSeconds(900))
-                .build();
-        when(notificationRepository.findBySourceIdAndType("challenge-1", NotificationType.CHALLENGE_RECEIVED))
-                .thenReturn(List.of(invitation));
+    void invitationReminder_replacesTheInvitationWithAFreshUnreadOne() {
+        when(notificationRepository.findBySourceIdAndType("room-1", NotificationType.CHALLENGE_RECEIVED))
+                .thenReturn(List.of(notification("notification-1", NotificationType.CHALLENGE_RECEIVED, AT.minusSeconds(900))));
 
-        handler.on(new ChallengeEvent.ChallengeRemindedEvent("challenge-1", "topic-1", "challenger", "opponent", null,
-                AT.plusSeconds(2700), AT, AT.plusSeconds(600)));
+        handler.on(reminded(RoomReminderStage.INVITATION, AT));
 
         ArgumentCaptor<NotificationCommand.DeleteNotificationCommand> deleteCaptor =
                 ArgumentCaptor.forClass(NotificationCommand.DeleteNotificationCommand.class);
         verify(commandGateway).sendAndWait(deleteCaptor.capture());
         assertThat(deleteCaptor.getValue().notificationId()).isEqualTo("notification-1");
 
-        ArgumentCaptor<NotificationCommand.CreateNotificationCommand> createCaptor =
-                ArgumentCaptor.forClass(NotificationCommand.CreateNotificationCommand.class);
-        verify(commandGateway).send(createCaptor.capture());
-        assertThat(createCaptor.getValue().userId()).isEqualTo("opponent");
-        assertThat(createCaptor.getValue().type()).isEqualTo(NotificationType.CHALLENGE_RECEIVED);
-        assertThat(createCaptor.getValue().sourceId()).isEqualTo("challenge-1");
-        assertThat(createCaptor.getValue().expiresAt()).isEqualTo(AT.plusSeconds(2700));
-        assertThat(createCaptor.getValue().notificationId()).isNotEqualTo("notification-1");
+        NotificationCommand.CreateNotificationCommand created = createdNotification();
+        assertThat(created.userId()).isEqualTo("opponent");
+        assertThat(created.type()).isEqualTo(NotificationType.CHALLENGE_RECEIVED);
+        assertThat(created.sourceId()).isEqualTo("room-1");
+        assertThat(created.topicId()).isEqualTo("topic-1");
+        assertThat(created.expiresAt()).isEqualTo(AT.plusSeconds(2700));
+        assertThat(created.notificationId()).isNotEqualTo("notification-1");
     }
 
     @Test
-    void challengeExpired_expiresTheInvitationWithoutNotification() {
-        handler.on(new ChallengeEvent.ChallengeExpiredEvent("challenge-1", AT));
-
-        verify(notificationRepository).expireChallengeInvitations("challenge-1", AT);
-        verifyNoInteractions(commandGateway);
-    }
-
-    @Test
-    void challengePurged_expiresTheInvitationWithoutNotification() {
-        handler.on(new ChallengeEvent.ChallengePurgedEvent("challenge-1", AT));
-
-        verify(notificationRepository).expireChallengeInvitations("challenge-1", AT);
-        verifyNoInteractions(commandGateway);
-    }
-
-    @Test
-    void roomCompleted_attachesGameIdToAcceptance() {
-        handler.on(new RoomEvent.RoomCompletedEvent("room-1", "game-1", AT));
-
-        verify(notificationRepository).attachGameId("room-1", "game-1");
-        verify(notificationRepository).expireBySourceIdAndType("room-1", NotificationType.WIZZ, AT);
-        verifyNoInteractions(commandGateway);
-    }
-
-    @Test
-    void roomWizzed_replacesPreviousEntryAndNotifiesTheTarget() {
-        Notification previous = Notification.builder()
-                .notificationId("notification-previous")
-                .userId("opponent")
-                .type(NotificationType.WIZZ)
-                .actorId("initiator")
-                .sourceId("room-1")
-                .createdAt(AT.minusSeconds(20))
-                .build();
+    void presenceReminder_replacesThePreviousWizzAndNotifiesTheTarget() {
         when(notificationRepository.findBySourceIdAndType("room-1", NotificationType.WIZZ))
-                .thenReturn(List.of(previous));
+                .thenReturn(List.of(notification("notification-previous", NotificationType.WIZZ, AT.minusSeconds(20))));
 
-        handler.on(new RoomEvent.RoomWizzedEvent("room-1", "initiator", "opponent", AT));
+        handler.on(reminded(RoomReminderStage.PRESENCE, AT));
 
         ArgumentCaptor<NotificationCommand.DeleteNotificationCommand> deleteCaptor =
                 ArgumentCaptor.forClass(NotificationCommand.DeleteNotificationCommand.class);
         verify(commandGateway).sendAndWait(deleteCaptor.capture());
         assertThat(deleteCaptor.getValue().notificationId()).isEqualTo("notification-previous");
-        assertThat(deleteCaptor.getValue().userId()).isEqualTo("opponent");
 
-        ArgumentCaptor<NotificationCommand.CreateNotificationCommand> createCaptor =
-                ArgumentCaptor.forClass(NotificationCommand.CreateNotificationCommand.class);
-        verify(commandGateway).send(createCaptor.capture());
-        assertThat(createCaptor.getValue().userId()).isEqualTo("opponent");
-        assertThat(createCaptor.getValue().type()).isEqualTo(NotificationType.WIZZ);
-        assertThat(createCaptor.getValue().actorId()).isEqualTo("initiator");
-        assertThat(createCaptor.getValue().sourceId()).isEqualTo("room-1");
+        NotificationCommand.CreateNotificationCommand created = createdNotification();
+        assertThat(created.userId()).isEqualTo("opponent");
+        assertThat(created.type()).isEqualTo(NotificationType.WIZZ);
+        assertThat(created.actorId()).isEqualTo("challenger");
+        assertThat(created.sourceId()).isEqualTo("room-1");
+        assertThat(created.topicId()).isNull();
+        assertThat(created.expiresAt()).isNull();
     }
 
     @Test
-    void roomWizzed_secondDeliveryReusesTheSameDeterministicId() {
-        handler.on(new RoomEvent.RoomWizzedEvent("room-1", "initiator", "opponent", AT));
-        handler.on(new RoomEvent.RoomWizzedEvent("room-1", "initiator", "opponent", AT));
+    void reminder_secondDeliveryReusesTheSameDeterministicId() {
+        handler.on(reminded(RoomReminderStage.PRESENCE, AT));
+        handler.on(reminded(RoomReminderStage.PRESENCE, AT));
 
         ArgumentCaptor<NotificationCommand.CreateNotificationCommand> captor =
                 ArgumentCaptor.forClass(NotificationCommand.CreateNotificationCommand.class);
@@ -327,25 +263,39 @@ class NotificationIngestionHandlerTest {
     }
 
     @Test
+    void expired_expiresTheInvitationAndTheWizzWithoutNotification() {
+        handler.on(new RoomEvent.RoomExpiredEvent("room-1", Set.of("challenger", "opponent"), AT));
+
+        verify(notificationRepository).expireBySourceIdAndType("room-1", NotificationType.CHALLENGE_RECEIVED, AT);
+        verify(notificationRepository).expireBySourceIdAndType("room-1", NotificationType.WIZZ, AT);
+        verifyNoInteractions(commandGateway);
+    }
+
+    @Test
+    void purged_expiresWhatIsStillActionable() {
+        handler.on(new RoomEvent.RoomPurgedEvent("room-1", AT));
+
+        verify(notificationRepository).expireBySourceIdAndType("room-1", NotificationType.CHALLENGE_RECEIVED, AT);
+        verify(notificationRepository).expireBySourceIdAndType("room-1", NotificationType.WIZZ, AT);
+        verifyNoInteractions(commandGateway);
+    }
+
+    @Test
+    void completed_attachesTheGameToTheAcceptance() {
+        handler.on(new RoomEvent.RoomCompletedEvent(
+                "room-1", "game-1", RoomOrigin.CHALLENGE, "challenger", Set.of("challenger", "opponent"), AT));
+
+        verify(notificationRepository).attachGameId("room-1", "game-1");
+        verify(notificationRepository).expireBySourceIdAndType("room-1", NotificationType.WIZZ, AT);
+        verifyNoInteractions(commandGateway);
+    }
+
+    @Test
     void roomEntered_expiresTheWizzOfTheArrivingPlayer() {
-        handler.on(new RoomEvent.RoomEnteredEvent("room-1", "opponent", null, AT, "presence-1", java.util.Set.of("opponent")));
+        handler.on(new RoomEvent.RoomEnteredEvent("room-1", "opponent", null, AT, "presence-1", Set.of("opponent")));
 
         verify(notificationRepository).expireBySourceIdAndTypeAndUserId(
                 "room-1", NotificationType.WIZZ, "opponent", AT);
-    }
-
-    @Test
-    void roomCancelled_expiresPendingWizz() {
-        handler.on(new RoomEvent.RoomCancelledEvent("room-1", "initiator", "PLAYER_CANCELLED", AT));
-
-        verify(notificationRepository).expireBySourceIdAndType("room-1", NotificationType.WIZZ, AT);
-    }
-
-    @Test
-    void roomExpired_expiresPendingWizz() {
-        handler.on(new RoomEvent.RoomExpiredEvent("room-1", AT));
-
-        verify(notificationRepository).expireBySourceIdAndType("room-1", NotificationType.WIZZ, AT);
     }
 
     @Test
@@ -353,6 +303,35 @@ class NotificationIngestionHandlerTest {
         handler.on(new RoomEvent.RoomFailedEvent("room-1", "GAME_CREATION_TIMEOUT", AT));
 
         verify(notificationRepository).expireBySourceIdAndType("room-1", NotificationType.WIZZ, AT);
+    }
+
+    private static RoomEvent.RoomCreatedEvent invited(String roomId, RoomOrigin origin, String sourceGameId, Instant expiresAt) {
+        return new RoomEvent.RoomCreatedEvent(
+                roomId, "topic-1", "challenger", "opponent", false, null, origin, sourceGameId,
+                RoomStatus.INVITED, expiresAt, AT);
+    }
+
+    private static RoomEvent.RoomRemindedEvent reminded(RoomReminderStage stage, Instant at) {
+        return new RoomEvent.RoomRemindedEvent(
+                "room-1", "challenger", "opponent", stage, "topic-1", null, AT.plusSeconds(2700), at, at.plusSeconds(600));
+    }
+
+    private static Notification notification(String id, NotificationType type, Instant createdAt) {
+        return Notification.builder()
+                .notificationId(id)
+                .userId("opponent")
+                .type(type)
+                .actorId("challenger")
+                .sourceId("room-1")
+                .createdAt(createdAt)
+                .build();
+    }
+
+    private NotificationCommand.CreateNotificationCommand createdNotification() {
+        ArgumentCaptor<NotificationCommand.CreateNotificationCommand> captor =
+                ArgumentCaptor.forClass(NotificationCommand.CreateNotificationCommand.class);
+        verify(commandGateway).send(captor.capture());
+        return captor.getValue();
     }
 
     @Test

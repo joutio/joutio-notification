@@ -6,7 +6,7 @@ package com.joutio.notification.domain.model;
  */
 public enum NotificationType {
     FOLLOW,
-    /** Défi nominatif reçu (intention asynchrone, avant toute salle). */
+    /** Défi reçu : invitation à une salle {@code INVITED} ({@code sourceId = roomId}). */
     CHALLENGE_RECEIVED,
     /** Défi nominatif refusé par l'invité. */
     CHALLENGE_DECLINED,

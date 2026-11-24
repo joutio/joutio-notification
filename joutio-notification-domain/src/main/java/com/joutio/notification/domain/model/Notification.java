@@ -6,7 +6,7 @@ import java.time.Instant;
 
 /**
  * Read model d'une notification personnelle. Les champs optionnels dépendent du
- * {@link NotificationType} : {@code actorId} (auteur), {@code sourceId} (salon/ticket/follow),
+ * {@link NotificationType} : {@code actorId} (auteur), {@code sourceId} (salle, signalement, follow…),
  * {@code topicId}, {@code gameId}, {@code expiresAt}.
  */
 @Builder(toBuilder = true)

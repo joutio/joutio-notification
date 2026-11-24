@@ -1,9 +1,8 @@
 package com.joutio.notification.application.handler.event;
 
 import com.joutio.identity.domain.event.UserEvent;
-import com.joutio.matchmaking.domain.event.ChallengeEvent;
 import com.joutio.matchmaking.domain.event.RoomEvent;
-import com.joutio.matchmaking.domain.model.RoomOrigin;
+import com.joutio.matchmaking.domain.model.RoomReminderStage;
 import com.joutio.notification.domain.command.NotificationCommand;
 import com.joutio.notification.domain.model.Notification;
 import com.joutio.notification.domain.model.NotificationCategory;
@@ -33,12 +32,10 @@ import java.util.UUID;
  * L'identifiant de notification est déterministe (type + source + destinataire) : la relecture
  * at-least-once est idempotente (contrainte unique en base).
  * <p>
- * Les événements de salle ne portent pas de notification d'inbox (la présence, l'**avancement de
- * la préparation** et l'échec sont poussés en temps réel par le BFF sur
- * {@code /topic/rooms/{roomId}}), à deux exceptions près : les **relances** (« wizz ») qui visent,
- * par définition, un joueur absent de la salle (inbox + push), et {@code ROOM_COMPLETED} qui
- * complète la notification d'acceptation avec le {@code gameId} (deep link arène, la salle étant
- * purgée après rétention).
+ * Salles : seuls l'invitation d'un défi (envoi, relance, acceptation, refus, fin) et l'appel d'un joueur absent
+ * (« wizz ») passent par l'inbox, avec {@code sourceId = roomId}. La présence, l'avancement de la préparation et
+ * l'échec sont poussés en temps réel par le BFF ; {@code ROOM_COMPLETED} rattache le {@code gameId} à la notification
+ * d'acceptation (deep link arène, la salle étant purgée après rétention).
  */
 @Component
 @ProcessingGroup("notification-ingestion")
@@ -105,85 +102,57 @@ public class NotificationIngestionHandler {
                 null, event.topicId(), event.topicId(), null, null);
     }
 
-    // ============================ Défis nominatifs ============================
+    // ======================== Salles et défis (sourceId = roomId) ========================
 
-    /** Défi reçu : l'invitation vit au niveau du défi (sourceId = challengeId), avant la salle.
-     *  {@code gameId} référence la partie d'origine quand il s'agit d'une revanche. */
+    /**
+     * Défi ou revanche envoyé : la salle naît {@code INVITED} et l'invité reçoit l'invitation. {@code gameId} porte la
+     * partie d'origine d'une revanche (catégorie {@code REMATCH}).
+     */
     @EventHandler
-    public void on(ChallengeEvent.ChallengeCreatedEvent event) {
-        createIfAllowed(event.opponentId(), NotificationType.CHALLENGE_RECEIVED, event.challengerId(),
-                event.challengeId(), event.topicId(), event.gameId(), event.expiresAt());
+    public void on(RoomEvent.RoomCreatedEvent event) {
+        if (!event.origin().requiresAcceptance()) {
+            return;
+        }
+        createIfAllowed(event.opponentId(), NotificationType.CHALLENGE_RECEIVED, event.initiatorId(),
+                event.roomId(), event.topicId(), event.sourceGameId(), event.expiresAt());
     }
 
     /**
-     * Défi relancé : l'invitation reste **unique par défi**. La précédente est supprimée (push
-     * {@code NOTIFICATION_DELETED}) puis recréée non lue, en tête : nouveau toast, nouveau push. L'identifiant
-     * déterministe inclut l'horodatage de la relance (relecture Kafka reproductible malgré le remplacement).
+     * Relance, une entrée unique par salle et par étape : la précédente est supprimée (push
+     * {@code NOTIFICATION_DELETED}) puis recréée non lue, en tête (nouveau toast, nouveau push). L'identifiant
+     * déterministe inclut l'horodatage de la relance pour que la relecture Kafka reste reproductible.
+     * <ul>
+     *   <li>invitation : l'invité reçoit une nouvelle {@code CHALLENGE_RECEIVED} ;</li>
+     *   <li>présence : l'absent reçoit un {@code WIZZ}.</li>
+     * </ul>
      */
     @EventHandler
-    public void on(ChallengeEvent.ChallengeRemindedEvent event) {
-        deleteAll(event.challengeId(), NotificationType.CHALLENGE_RECEIVED);
-        createIfAllowed(event.opponentId(), NotificationType.CHALLENGE_RECEIVED, event.challengerId(),
-                event.challengeId(), event.topicId(), event.gameId(), event.expiresAt(),
-                deterministicId(NotificationType.CHALLENGE_RECEIVED,
-                        event.challengeId() + "@" + event.remindedAt().toEpochMilli(), event.opponentId()));
+    public void on(RoomEvent.RoomRemindedEvent event) {
+        boolean invitation = event.stage() == RoomReminderStage.INVITATION;
+        NotificationType type = invitation ? NotificationType.CHALLENGE_RECEIVED : NotificationType.WIZZ;
+        deleteAll(event.roomId(), type);
+        createIfAllowed(event.targetId(), type, event.playerId(), event.roomId(),
+                invitation ? event.topicId() : null,
+                invitation ? event.sourceGameId() : null,
+                invitation ? event.expiresAt() : null,
+                deterministicId(type, event.roomId() + "@" + event.remindedAt().toEpochMilli(), event.targetId()));
     }
 
-    /**
-     * Défi accepté : l'invitation n'est plus actionnable. La notification d'acceptation au lanceur
-     * est créée à la création effective de la salle (cf. {@code RoomCreatedEvent}), pour ne jamais
-     * révéler un {@code roomId} avant que la salle existe.
-     */
+    /** Défi accepté : l'invitation n'est plus actionnable, le lanceur est prévenu. */
     @EventHandler
-    public void on(ChallengeEvent.ChallengeAcceptedEvent event) {
-        notificationRepository.expireChallengeInvitations(event.challengeId(), event.acceptedAt());
-    }
-
-    @EventHandler
-    public void on(ChallengeEvent.ChallengeDeclinedEvent event) {
-        notificationRepository.expireChallengeInvitations(event.challengeId(), event.declinedAt());
-        createIfAllowed(event.challengerId(), NotificationType.CHALLENGE_DECLINED, event.opponentId(),
-                event.challengeId(), null, null, null);
-    }
-
-    /**
-     * Défi annulé : l'invitation n'est plus actionnable — elle est **supprimée** (hard delete) pour
-     * que le client ferme la modale et retire la carte de l'accueil en temps réel (push
-     * {@code NOTIFICATION_DELETED}) au lieu de rester cliquable jusqu'à l'expiration.
-     */
-    @EventHandler
-    public void on(ChallengeEvent.ChallengeCancelledEvent event) {
-        deleteAll(event.challengeId(), NotificationType.CHALLENGE_RECEIVED);
+    public void on(RoomEvent.RoomAcceptedEvent event) {
+        notificationRepository.expireBySourceIdAndType(
+                event.roomId(), NotificationType.CHALLENGE_RECEIVED, event.acceptedAt());
+        createIfAllowed(event.initiatorId(), NotificationType.ROOM_ACCEPTED, event.opponentId(),
+                event.roomId(), event.topicId(), null, null);
     }
 
     @EventHandler
-    public void on(ChallengeEvent.ChallengeExpiredEvent event) {
-        notificationRepository.expireChallengeInvitations(event.challengeId(), event.expiredAt());
-    }
-
-    @EventHandler
-    public void on(ChallengeEvent.ChallengePurgedEvent event) {
-        // Filet de sécurité (la purge suit normalement un événement terminal déjà traité) :
-        // l'invitation en attente n'est plus actionnable une fois le défi disparu.
-        notificationRepository.expireChallengeInvitations(event.challengeId(), event.purgedAt());
-    }
-
-    // =============================== Salle ==============================
-
-    /**
-     * Relance (« wizz ») : la cible reçoit une entrée d'inbox **unique par salle** — la relance
-     * précédente est remplacée (hard delete → push {@code NOTIFICATION_DELETED}, la carte obsolète
-     * disparaît des autres onglets) puis la nouvelle est créée, non lue : nouveau toast, nouvelle
-     * secousse, nouveau Web Push. L'identifiant déterministe inclut l'horodatage du wizz pour que
-     * la relecture Kafka soit reproductible malgré le remplacement.
-     */
-    @EventHandler
-    public void on(RoomEvent.RoomWizzedEvent event) {
-        deleteAll(event.roomId(), NotificationType.WIZZ);
-        createIfAllowed(event.targetId(), NotificationType.WIZZ, event.playerId(), event.roomId(),
-                null, null, null,
-                deterministicId(NotificationType.WIZZ,
-                        event.roomId() + "@" + event.wizzedAt().toEpochMilli(), event.targetId()));
+    public void on(RoomEvent.RoomDeclinedEvent event) {
+        notificationRepository.expireBySourceIdAndType(
+                event.roomId(), NotificationType.CHALLENGE_RECEIVED, event.declinedAt());
+        createIfAllowed(event.initiatorId(), NotificationType.CHALLENGE_DECLINED, event.opponentId(),
+                event.roomId(), null, null, null);
     }
 
     /** Le joueur visé par une relance vient d'apparaître : la relance est honorée (trace expirée). */
@@ -202,18 +171,21 @@ public class NotificationIngestionHandler {
                 event.roomId(), NotificationType.WIZZ, event.completedAt());
     }
 
-    /** Salle annulée par l'initiateur : la relance en attente n'est plus actionnable. */
+    /**
+     * Salle annulée (bouton ou blocage) : l'invitation est <b>supprimée</b> pour que le client ferme la modale et
+     * retire la carte en temps réel (push {@code NOTIFICATION_DELETED}) ; la relance en attente expire.
+     */
     @EventHandler
     public void on(RoomEvent.RoomCancelledEvent event) {
+        deleteAll(event.roomId(), NotificationType.CHALLENGE_RECEIVED);
         notificationRepository.expireBySourceIdAndType(
                 event.roomId(), NotificationType.WIZZ, event.cancelledAt());
     }
 
-    /** Salle jamais lancée, expirée : la relance en attente n'est plus actionnable. */
+    /** Invitation sans réponse ou salle jamais lancée : rien n'est plus actionnable. */
     @EventHandler
     public void on(RoomEvent.RoomExpiredEvent event) {
-        notificationRepository.expireBySourceIdAndType(
-                event.roomId(), NotificationType.WIZZ, event.expiredAt());
+        expireActionable(event.roomId(), event.expiredAt());
     }
 
     /** Échec de préparation : la relance en attente n'est plus actionnable. */
@@ -223,17 +195,15 @@ public class NotificationIngestionHandler {
                 event.roomId(), NotificationType.WIZZ, event.failedAt());
     }
 
-    /**
-     * Salle de défi créée : le lanceur est notifié de l'acceptation (sourceId = roomId) seulement
-     * maintenant, pour que le client n'apprenne jamais un roomId avant que la salle existe.
-     */
+    /** Filet : la purge suit normalement un état terminal déjà traité. */
     @EventHandler
-    public void on(RoomEvent.RoomCreatedEvent event) {
-        if (event.origin() != RoomOrigin.CHALLENGE && event.origin() != RoomOrigin.REMATCH) {
-            return;
-        }
-        createIfAllowed(event.initiatorId(), NotificationType.ROOM_ACCEPTED, event.opponentId(),
-                event.roomId(), event.topicId(), null, null);
+    public void on(RoomEvent.RoomPurgedEvent event) {
+        expireActionable(event.roomId(), event.purgedAt());
+    }
+
+    private void expireActionable(String roomId, Instant at) {
+        notificationRepository.expireBySourceIdAndType(roomId, NotificationType.CHALLENGE_RECEIVED, at);
+        notificationRepository.expireBySourceIdAndType(roomId, NotificationType.WIZZ, at);
     }
 
     // =====================================================================

@@ -15,13 +15,10 @@ public interface NotificationRepositoryPort {
     /** Hard delete de la notification (projection de l'événement de suppression). */
     void deleteById(String notificationId);
 
-    /** Notifications d'une source pour un type donné (ex. invitations d'un défi). */
+    /** Notifications d'une source pour un type donné (ex. invitations d'une salle). */
     List<Notification> findBySourceIdAndType(String sourceId, NotificationType type);
 
-    /** Expire un défi nominatif en attente (accepté/refusé/annulé/expiré). */
-    void expireChallengeInvitations(String challengeId, java.time.Instant expiredAt);
-
-    /** Expire les notifications d'une source pour un type donné (ex. relances d'une salle close). */
+    /** Expire les notifications d'une source pour un type donné (invitation résolue, relance d'une salle close). */
     void expireBySourceIdAndType(String sourceId, NotificationType type, java.time.Instant expiredAt);
 
     /**
