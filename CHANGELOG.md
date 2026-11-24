@@ -1,3 +1,9 @@
+## [2.0.1](https://github.com/joutio/joutio-notification/compare/v2.0.0...v2.0.1) (2026-11-24)
+
+### Bug Fixes
+
+* **deps:** pin published contract versions ([45625fd](https://github.com/joutio/joutio-notification/commit/45625fd910b13d92194ffb6de0226fd6736d31bb))
+
 ## [2.0.0](https://github.com/joutio/joutio-notification/compare/v1.3.0...v2.0.0) (2026-11-24)
 
 ### ⚠ BREAKING CHANGES
