@@ -1,3 +1,9 @@
+## [2.0.3](https://github.com/joutio/joutio-notification/compare/v2.0.2...v2.0.3) (2026-11-25)
+
+### Bug Fixes
+
+* **deps:** joutio-parent 3.2.0 with the gRPC query bus ([826293f](https://github.com/joutio/joutio-notification/commit/826293f296f5afec2a8ea58314e59dab02097166))
+
 ## [2.0.2](https://github.com/joutio/joutio-notification/compare/v2.0.1...v2.0.2) (2026-11-25)
 
 ### Bug Fixes
